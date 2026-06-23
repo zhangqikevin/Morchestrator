@@ -39,15 +39,12 @@ export class FuguOrchestrator {
     }
   }
 
-  stream(req: FuguRequest): AsyncGenerator<StreamChunk> {
-    return this.streamer.stream(req);
-  }
+  stream(req: FuguRequest): AsyncGenerator<StreamChunk> { return this.streamer.stream(req); }
 
   private async runSimple(req: FuguRequest): Promise<FuguResponse> {
     const res = await this.client.chat({ model: this.roles.fastChat, messages: req.messages, temperature: req.temperature, max_tokens: req.maxTokens });
     return { content: res.content, taskType: "simple", modelsUsed: [this.roles.fastChat], usage: res.usage };
   }
-
   private async runToolUse(req: FuguRequest): Promise<FuguResponse> {
     const model = this.roles.toolUse;
     for (let turn = 0; turn < 10; turn++) {
@@ -57,23 +54,21 @@ export class FuguOrchestrator {
     }
     throw new Error("tool_use loop exceeded 10 turns");
   }
-
   private async runCode(req: FuguRequest): Promise<FuguResponse> {
     const workers = this.roles.code.slice(0, this.maxWorkers);
     const drafts = await Promise.allSettled(workers.map((model) => this.client.chat({ model, messages: req.messages, temperature: req.temperature ?? 0.2, max_tokens: req.maxTokens }).then((r) => ({ model, content: r.content }))));
-    const succeeded = drafts.filter((d): d is PromiseFulfilledResult<{ model: string; content: string }> => d.status === "fulfilled").map((d) => d.value);
-    if (succeeded.length === 0) throw new Error("All code workers failed");
-    if (succeeded.length === 1) return { content: succeeded[0].content, taskType: "code", modelsUsed: [succeeded[0].model] };
-    const originalQuestion = [...req.messages].reverse().find((m) => m.role === "user")?.content ?? "";
-    const draftsText = succeeded.map((d, i) => `### Draft ${i + 1} (${d.model})\n${d.content}`).join("\n\n---\n\n");
-    const review = await this.client.chat({ model: this.roles.orchestrator, messages: [{ role: "system", content: "Senior code reviewer. Pick best draft or synthesize. Output ONLY final code." }, { role: "user", content: `Task:\n${originalQuestion}\n\n${draftsText}` }], temperature: 0.1 });
-    return { content: review.content, taskType: "code", modelsUsed: [this.roles.orchestrator, ...succeeded.map((s) => s.model)], usage: review.usage };
+    const ok = drafts.filter((d): d is PromiseFulfilledResult<{ model: string; content: string }> => d.status === "fulfilled").map((d) => d.value);
+    if (!ok.length) throw new Error("All code workers failed");
+    if (ok.length === 1) return { content: ok[0].content, taskType: "code", modelsUsed: [ok[0].model] };
+    const q = [...req.messages].reverse().find((m) => m.role === "user")?.content ?? "";
+    const dt = ok.map((d, i) => `### Draft ${i + 1} (${d.model})\n${d.content}`).join("\n\n---\n\n");
+    const review = await this.client.chat({ model: this.roles.orchestrator, messages: [{ role: "system", content: "Senior code reviewer. Output ONLY final code." }, { role: "user", content: `Task:\n${q}\n\n${dt}` }], temperature: 0.1 });
+    return { content: review.content, taskType: "code", modelsUsed: [this.roles.orchestrator, ...ok.map((s) => s.model)], usage: review.usage };
   }
-
   private async runReasoning(req: FuguRequest): Promise<FuguResponse> {
     const draft = await this.client.chat({ model: this.roles.fastChat, messages: req.messages, temperature: req.temperature ?? 0.5, max_tokens: req.maxTokens });
-    const refineMessages: Message[] = [...req.messages, { role: "assistant", content: draft.content }, { role: "user", content: "Review and improve the answer above. Fix errors and gaps." }];
-    const refined = await this.client.chat({ model: this.roles.reasoning, messages: refineMessages, temperature: 0.3, max_tokens: req.maxTokens });
+    const rm: Message[] = [...req.messages, { role: "assistant", content: draft.content }, { role: "user", content: "Review and improve. Fix errors and gaps." }];
+    const refined = await this.client.chat({ model: this.roles.reasoning, messages: rm, temperature: 0.3, max_tokens: req.maxTokens });
     return { content: refined.content, taskType: "reasoning", modelsUsed: [this.roles.fastChat, this.roles.reasoning], usage: refined.usage };
   }
 }
