@@ -1,0 +1,11 @@
+{
+  "name": "morchestrator",
+  "version": "0.1.0",
+  "description": "Fugu-style multi-model orchestrator for LiteLLM with streaming support",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "import": "./dist/index.js", "types": "./dist/index.d.ts" } },
+  "scripts": { "build": "tsc", "dev": "tsc --watch", "example": "npx tsx examples/basic.ts" },
+  "devDependencies": { "typescript": "^5.4.0", "tsx": "^4.7.0" }
+}
