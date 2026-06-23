@@ -11,9 +11,15 @@ Fugu-style multi-model orchestrator for LiteLLM, written in TypeScript. Routes t
 | `code` | Parallel workers → Orchestrator review | ✅ Progress events + streams final |
 | `tool_use` | Single orchestrator owns tool schema | ✅ Streams + emits tool_call events |
 
+## Install
+
+\`\`\`bash
+npm install morchestrator
+\`\`\`
+
 ## Usage
 
-```typescript
+\`\`\`typescript
 import { FuguOrchestrator } from "morchestrator";
 
 const fugu = new FuguOrchestrator({
@@ -35,11 +41,11 @@ for await (const chunk of fugu.stream({
   if (chunk.type === "delta") process.stdout.write(chunk.text ?? "");
   if (chunk.type === "done") console.log("\ndone:", chunk.modelsUsed);
 }
-```
+\`\`\`
 
 ## StreamChunk types
 
-- `progress` — orchestration progress message
-- `delta` — incremental text token
-- `tool_call` — tool call event (tool_use tasks)
-- `done` — final event with taskType, modelsUsed, usage
+- \`progress\` — orchestration progress message
+- \`delta\` — incremental text token
+- \`tool_call\` — tool call event (tool_use tasks)
+- \`done\` — final event with taskType, modelsUsed, usage
